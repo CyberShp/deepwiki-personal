@@ -57,7 +57,7 @@
 
 | 变量名 | 说明 | 示例值 |
 |--------|------|--------|
-| `TIKTOKEN_CACHE_DIR` | tiktoken 编码文件的本地缓存目录 | `/app/tiktoken_cache` |
+| `TIKTOKEN_CACHE_DIR` | tiktoken 编码文件的本地缓存目录 | `/opt/tiktoken_cache` |
 
 ### 可选变量 — 认证
 
@@ -99,9 +99,9 @@ print('Cache files downloaded.')
 python3 -c "import tiktoken; import os; print(os.path.expanduser('~/.tiktoken/'))"
 ```
 
-**方法二：在 Dockerfile 构建阶段预缓存**
+**方法二：在 Dockerfile 构建阶段预缓存（已内置于项目 Dockerfile）**
 
-在 `Dockerfile` 的 `py_deps` 阶段添加：
+项目 `Dockerfile` 的 `py_deps` 阶段已包含此步骤：
 
 ```dockerfile
 FROM python:3.11-slim AS py_deps
@@ -109,21 +109,22 @@ FROM python:3.11-slim AS py_deps
 
 # Pre-cache tiktoken encoding files during build
 # Requires internet access at build time (not at runtime)
-RUN python3 -c "
+RUN TIKTOKEN_CACHE_DIR=/api/tiktoken_cache \
+    python3 -c "
 import tiktoken
 tiktoken.get_encoding('cl100k_base')
 tiktoken.encoding_for_model('text-embedding-3-small')
-"
+print('tiktoken encodings cached successfully')"
 ```
 
 然后在最终镜像中复制缓存并设置环境变量：
 
 ```dockerfile
 # Copy tiktoken cache from build stage
-COPY --from=py_deps /root/.tiktoken /app/tiktoken_cache
+COPY --from=py_deps /api/tiktoken_cache /opt/tiktoken_cache
 
 # Set tiktoken to use local cache
-ENV TIKTOKEN_CACHE_DIR=/app/tiktoken_cache
+ENV TIKTOKEN_CACHE_DIR=/opt/tiktoken_cache
 ```
 
 ### 2. 准备内网 SSL 证书
@@ -167,6 +168,7 @@ cp /path/to/your-internal-ca.crt certs/
 
 # 2. 创建 tiktoken 缓存目录（如使用方法一）
 mkdir -p tiktoken_cache
+# tiktoken 默认缓存路径通常为 ~/.tiktoken/
 cp ~/.tiktoken/* tiktoken_cache/
 
 # 3. 构建镜像
@@ -222,7 +224,7 @@ services:
       - GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
 
       # tiktoken 离线缓存
-      - TIKTOKEN_CACHE_DIR=/app/tiktoken_cache
+      - TIKTOKEN_CACHE_DIR=/opt/tiktoken_cache
 
       # 自定义 LLM（OpenAI 兼容接口示例）
       # - OPENAI_BASE_URL=https://llm.intranet.company.com/v1
@@ -236,7 +238,7 @@ services:
       - ./api/logs:/app/api/logs
 
       # 挂载 tiktoken 离线缓存（如未打入镜像）
-      # - ./tiktoken_cache:/app/tiktoken_cache:ro
+      # - ./tiktoken_cache:/opt/tiktoken_cache:ro
 
       # 挂载自定义 LLM 配置（可选）
       # - ./custom-config:/app/custom-config:ro
@@ -290,7 +292,7 @@ PORT=8001
 docker exec <container_id> env | grep TIKTOKEN
 
 # 确认缓存文件存在
-docker exec <container_id> ls -la /app/tiktoken_cache/
+docker exec <container_id> ls -la /opt/tiktoken_cache/
 
 # 手动测试 tiktoken 加载
 docker exec <container_id> python3 -c "
