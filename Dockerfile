@@ -33,6 +33,14 @@ RUN python -m pip install poetry==2.0.1 --no-cache-dir && \
     POETRY_MAX_WORKERS=10 poetry install --no-interaction --no-ansi --only main && \
     poetry cache clear --all .
 
+# Pre-cache tiktoken encodings so the image can start offline without hanging
+RUN TIKTOKEN_CACHE_DIR=/api/tiktoken_cache \
+    .venv/bin/python -c "\
+import tiktoken; \
+tiktoken.get_encoding('cl100k_base'); \
+tiktoken.encoding_for_model('text-embedding-3-small'); \
+print('tiktoken encodings cached successfully')"
+
 # Use Python 3.11 as final image
 FROM python:3.11-slim
 
@@ -65,10 +73,15 @@ RUN if [ -n "${CUSTOM_CERT_DIR}" ]; then \
         fi \
     fi
 
+# Point Python/requests/httpx at the system CA bundle so custom certs are used
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy Python dependencies
+# Copy Python dependencies and pre-built tiktoken cache
 COPY --from=py_deps /api/.venv /opt/venv
+COPY --from=py_deps /api/tiktoken_cache /opt/tiktoken_cache
 COPY api/ ./api/
 
 # Copy Node app
@@ -103,6 +116,8 @@ exit $?' > /app/start.sh && chmod +x /app/start.sh
 ENV PORT=8001
 ENV NODE_ENV=production
 ENV SERVER_BASE_URL=http://localhost:${PORT:-8001}
+# Point tiktoken at the pre-built cache; override with TIKTOKEN_CACHE_DIR to mount an external cache
+ENV TIKTOKEN_CACHE_DIR=/opt/tiktoken_cache
 
 # Create empty .env file (will be overridden if one exists at runtime)
 RUN touch .env

@@ -21,6 +21,21 @@ from api.tools.embedder import get_embedder
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# Warn early if the tiktoken cache directory is configured but missing.
+# Without a valid cache, tiktoken will attempt a network download on first use,
+# which hangs indefinitely in air-gapped / intranet environments.
+_tiktoken_cache_dir = os.environ.get("TIKTOKEN_CACHE_DIR")
+if _tiktoken_cache_dir and not os.path.isdir(_tiktoken_cache_dir):
+    logger.warning(
+        "TIKTOKEN_CACHE_DIR=%r is set but does not exist. "
+        "tiktoken will attempt to download encoding files from the internet on first use, "
+        "which may hang in offline environments. "
+        "Use the official Docker image or pre-build the cache with: "
+        "TIKTOKEN_CACHE_DIR=%r python -c \"import tiktoken; tiktoken.get_encoding('cl100k_base')\"",
+        _tiktoken_cache_dir,
+        _tiktoken_cache_dir,
+    )
+
 # Maximum token limit for OpenAI embedding models
 MAX_EMBEDDING_TOKENS = 8192
 
