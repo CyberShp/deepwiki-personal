@@ -30,6 +30,15 @@
       "dimensions": 256
     }
   },
+  "embedder_custom": {
+    "client_class": "CustomEmbedderClient",
+    "batch_size": 500,
+    "model_kwargs": {
+      "model": "${CUSTOM_EMBEDDER_MODEL}",
+      "dimensions": 256,
+      "encoding_format": "float"
+    }
+  },
   "retriever": {
     "top_k": 20
   },

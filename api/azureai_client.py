@@ -231,6 +231,7 @@ class AzureAIClient(ModelClient):
         self._input_type = input_type
 
     def init_sync_client(self):
+        import httpx
         api_key = self._api_key or os.getenv("AZURE_OPENAI_API_KEY")
         azure_endpoint = self._azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
         api_version = self._apiversion or os.getenv("AZURE_OPENAI_VERSION")
@@ -240,9 +241,13 @@ class AzureAIClient(ModelClient):
         if not api_version:
             raise ValueError("Environment variable AZURE_OPENAI_VERSION must be set")
 
+        ssl_cert_file = os.getenv("SSL_CERT_FILE")
+        http_client = httpx.Client(verify=ssl_cert_file) if ssl_cert_file else None
+
         if api_key:
             return AzureOpenAI(
-                api_key=api_key, azure_endpoint=azure_endpoint, api_version=api_version
+                api_key=api_key, azure_endpoint=azure_endpoint, api_version=api_version,
+                http_client=http_client,
             )
         elif self._credential:
             # credential = DefaultAzureCredential()
@@ -253,6 +258,7 @@ class AzureAIClient(ModelClient):
                 azure_ad_token_provider=token_provider,
                 azure_endpoint=azure_endpoint,
                 api_version=api_version,
+                http_client=http_client,
             )
         else:
             raise ValueError(
@@ -260,6 +266,7 @@ class AzureAIClient(ModelClient):
             )
 
     def init_async_client(self):
+        import httpx
         api_key = self._api_key or os.getenv("AZURE_OPENAI_API_KEY")
         azure_endpoint = self._azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
         api_version = self._apiversion or os.getenv("AZURE_OPENAI_VERSION")
@@ -269,9 +276,13 @@ class AzureAIClient(ModelClient):
         if not api_version:
             raise ValueError("Environment variable AZURE_OPENAI_VERSION must be set")
 
+        ssl_cert_file = os.getenv("SSL_CERT_FILE")
+        http_client = httpx.AsyncClient(verify=ssl_cert_file) if ssl_cert_file else None
+
         if api_key:
             return AsyncAzureOpenAI(
-                api_key=api_key, azure_endpoint=azure_endpoint, api_version=api_version
+                api_key=api_key, azure_endpoint=azure_endpoint, api_version=api_version,
+                http_client=http_client,
             )
         elif self._credential:
             # credential = DefaultAzureCredential()
@@ -282,6 +293,7 @@ class AzureAIClient(ModelClient):
                 azure_ad_token_provider=token_provider,
                 azure_endpoint=azure_endpoint,
                 api_version=api_version,
+                http_client=http_client,
             )
         else:
             raise ValueError(

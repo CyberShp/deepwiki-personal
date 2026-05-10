@@ -193,6 +193,12 @@
           "top_p": 0.8
         }
       }
+    },
+    "custom_openai": {
+      "client_class": "CustomOpenAIClient",
+      "default_model": "${CUSTOM_LLM_MODEL}",
+      "supportsCustomModel": true,
+      "models": {}
     }
   }
 }

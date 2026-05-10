@@ -25,6 +25,16 @@ AWS_SESSION_TOKEN = os.environ.get('AWS_SESSION_TOKEN')
 AWS_REGION = os.environ.get('AWS_REGION')
 AWS_ROLE_ARN = os.environ.get('AWS_ROLE_ARN')
 
+# Custom OpenAI-compatible provider settings
+CUSTOM_LLM_BASE_URL = os.environ.get('CUSTOM_LLM_BASE_URL', '')
+CUSTOM_LLM_API_KEY = os.environ.get('CUSTOM_LLM_API_KEY', '')
+CUSTOM_LLM_MODEL = os.environ.get('CUSTOM_LLM_MODEL', '')
+
+# Custom OpenAI-compatible embedder settings
+CUSTOM_EMBEDDER_BASE_URL = os.environ.get('CUSTOM_EMBEDDER_BASE_URL', '')
+CUSTOM_EMBEDDER_API_KEY = os.environ.get('CUSTOM_EMBEDDER_API_KEY', '')
+CUSTOM_EMBEDDER_MODEL = os.environ.get('CUSTOM_EMBEDDER_MODEL', '')
+
 # Set keys in environment (in case they're needed elsewhere in the code)
 if OPENAI_API_KEY:
     os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
@@ -54,6 +64,28 @@ EMBEDDER_TYPE = os.environ.get('DEEPWIKI_EMBEDDER_TYPE', 'openai').lower()
 # Get configuration directory from environment variable, or use default if not set
 CONFIG_DIR = os.environ.get('DEEPWIKI_CONFIG_DIR', None)
 
+class CustomOpenAIClient(OpenAIClient):
+    """OpenAI-compatible client for intranet LLMs configured via CUSTOM_LLM_* env vars."""
+
+    def __init__(self, **kwargs):
+        super().__init__(
+            env_base_url_name='CUSTOM_LLM_BASE_URL',
+            env_api_key_name='CUSTOM_LLM_API_KEY',
+            **kwargs
+        )
+
+
+class CustomEmbedderClient(OpenAIClient):
+    """OpenAI-compatible embedder client configured via CUSTOM_EMBEDDER_* env vars."""
+
+    def __init__(self, **kwargs):
+        super().__init__(
+            env_base_url_name='CUSTOM_EMBEDDER_BASE_URL',
+            env_api_key_name='CUSTOM_EMBEDDER_API_KEY',
+            **kwargs
+        )
+
+
 # Client class mapping
 CLIENT_CLASSES = {
     "GoogleGenAIClient": GoogleGenAIClient,
@@ -63,7 +95,9 @@ CLIENT_CLASSES = {
     "OllamaClient": OllamaClient,
     "BedrockClient": BedrockClient,
     "AzureAIClient": AzureAIClient,
-    "DashscopeClient": DashscopeClient
+    "DashscopeClient": DashscopeClient,
+    "CustomOpenAIClient": CustomOpenAIClient,
+    "CustomEmbedderClient": CustomEmbedderClient,
 }
 
 def replace_env_placeholders(config: Union[Dict[str, Any], List[Any], str, Any]) -> Union[Dict[str, Any], List[Any], str, Any]:
@@ -124,6 +158,14 @@ def load_json_config(filename):
 def load_generator_config():
     generator_config = load_json_config("generator.json")
 
+    # Inject CUSTOM_LLM_MODEL as an explicit model entry for the custom_openai provider.
+    # The JSON uses an empty models dict because the key cannot be an env var placeholder.
+    if "custom_openai" in generator_config.get("providers", {}):
+        custom_provider = generator_config["providers"]["custom_openai"]
+        model_name = CUSTOM_LLM_MODEL or "custom"
+        custom_provider.setdefault("models", {})[model_name] = {"temperature": 0.7}
+        custom_provider["default_model"] = model_name
+
     # Add client classes to each provider
     if "providers" in generator_config:
         for provider_id, provider_config in generator_config["providers"].items():
@@ -152,7 +194,7 @@ def load_embedder_config():
     embedder_config = load_json_config("embedder.json")
 
     # Process client classes
-    for key in ["embedder", "embedder_ollama", "embedder_google", "embedder_bedrock"]:
+    for key in ["embedder", "embedder_ollama", "embedder_google", "embedder_bedrock", "embedder_custom"]:
         if key in embedder_config and "client_class" in embedder_config[key]:
             class_name = embedder_config[key]["client_class"]
             if class_name in CLIENT_CLASSES:
@@ -174,6 +216,8 @@ def get_embedder_config():
         return configs.get("embedder_google", {})
     elif embedder_type == 'ollama' and 'embedder_ollama' in configs:
         return configs.get("embedder_ollama", {})
+    elif embedder_type == 'custom' and 'embedder_custom' in configs:
+        return configs.get("embedder_custom", {})
     else:
         return configs.get("embedder", {})
 
@@ -235,12 +279,23 @@ def is_bedrock_embedder():
     client_class = embedder_config.get("client_class", "")
     return client_class == "BedrockClient"
 
-def get_embedder_type():
+def is_custom_embedder() -> bool:
+    """Check if the current embedder configuration uses CustomEmbedderClient."""
+    embedder_config = get_embedder_config()
+    if not embedder_config:
+        return False
+    model_client = embedder_config.get("model_client")
+    if model_client:
+        return model_client.__name__ == "CustomEmbedderClient"
+    return embedder_config.get("client_class", "") == "CustomEmbedderClient"
+
+
+def get_embedder_type() -> str:
     """
     Get the current embedder type based on configuration.
-    
+
     Returns:
-        str: 'bedrock', 'ollama', 'google', or 'openai' (default)
+        str: 'bedrock', 'ollama', 'google', 'custom', or 'openai' (default)
     """
     if is_bedrock_embedder():
         return 'bedrock'
@@ -248,6 +303,8 @@ def get_embedder_type():
         return 'ollama'
     elif is_google_embedder():
         return 'google'
+    elif is_custom_embedder():
+        return 'custom'
     else:
         return 'openai'
 
@@ -341,7 +398,7 @@ if generator_config:
 
 # Update embedder configuration
 if embedder_config:
-    for key in ["embedder", "embedder_ollama", "embedder_google", "embedder_bedrock", "retriever", "text_splitter"]:
+    for key in ["embedder", "embedder_ollama", "embedder_google", "embedder_bedrock", "embedder_custom", "retriever", "text_splitter"]:
         if key in embedder_config:
             configs[key] = embedder_config[key]
 

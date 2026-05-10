@@ -188,20 +188,26 @@ class OpenAIClient(ModelClient):
         self._api_kwargs = {}  # add api kwargs when the OpenAI Client is called
 
     def init_sync_client(self):
+        import httpx
         api_key = self._api_key or os.getenv(self._env_api_key_name)
         if not api_key:
             raise ValueError(
                 f"Environment variable {self._env_api_key_name} must be set"
             )
-        return OpenAI(api_key=api_key, base_url=self.base_url)
+        ssl_cert_file = os.getenv("SSL_CERT_FILE")
+        http_client = httpx.Client(verify=ssl_cert_file) if ssl_cert_file else None
+        return OpenAI(api_key=api_key, base_url=self.base_url, http_client=http_client)
 
     def init_async_client(self):
+        import httpx
         api_key = self._api_key or os.getenv(self._env_api_key_name)
         if not api_key:
             raise ValueError(
                 f"Environment variable {self._env_api_key_name} must be set"
             )
-        return AsyncOpenAI(api_key=api_key, base_url=self.base_url)
+        ssl_cert_file = os.getenv("SSL_CERT_FILE")
+        http_client = httpx.AsyncClient(verify=ssl_cert_file) if ssl_cert_file else None
+        return AsyncOpenAI(api_key=api_key, base_url=self.base_url, http_client=http_client)
 
     # def _parse_chat_completion(self, completion: ChatCompletion) -> "GeneratorOutput":
     #     # TODO: raw output it is better to save the whole completion as a source of truth instead of just the message
