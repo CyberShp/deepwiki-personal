@@ -7,9 +7,10 @@
 ## 目录
 
 1. [环境变量清单](#环境变量清单)
-2. [Docker 镜像构建步骤](#docker-镜像构建步骤)
-3. [docker-compose 配置示例](#docker-compose-配置示例)
-4. [常见问题排查](#常见问题排查)
+2. [裸机部署（无 Docker）](#裸机部署无-docker)
+3. [Docker 镜像构建步骤](#docker-镜像构建步骤)
+4. [docker-compose 配置示例](#docker-compose-配置示例)
+5. [常见问题排查](#常见问题排查)
 
 ---
 
@@ -71,6 +72,281 @@
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
 | `DEEPWIKI_EMBEDDER_TYPE` | Embedding 类型 (`openai`/`google`/`ollama`/`bedrock`) | `openai` |
+
+---
+
+## 裸机部署（无 Docker）
+
+适用场景：内网 PC 不允许安装 Docker，需要直接在操作系统上运行前后端服务。
+
+### 环境要求
+
+| 组件 | 最低版本 | 推荐版本 | 说明 |
+|------|---------|---------|------|
+| Python | 3.11 | 3.11 / 3.12 | 后端运行时 |
+| Node.js | 18 | 20 LTS | 前端运行时 |
+| npm | 9 | 10+ | 随 Node.js 一起安装 |
+| uv（可选） | — | 最新 | Python 包管理器，推荐使用 |
+
+> **Windows 用户**：推荐从 [python.org](https://www.python.org/downloads/) 下载 Python，
+> 从 [nodejs.org](https://nodejs.org/) 下载 Node.js LTS 版本。安装时勾选"Add to PATH"。
+
+---
+
+### 快速开始（推荐方式）
+
+项目提供了开箱即用的启动脚本，**绝大多数情况下只需两步**：
+
+#### 第一步：配置环境变量
+
+```bash
+# Linux/macOS
+cp .env.example .env
+# 编辑 .env，填入 LLM API 密钥等必要配置
+
+# Windows
+copy .env.example .env
+# 用记事本或 VS Code 编辑 .env
+```
+
+`.env` 文件的关键配置（内网场景）：
+
+```dotenv
+# 内网 LLM（OpenAI 兼容接口）
+CUSTOM_LLM_BASE_URL=http://llm.intranet.company.com/v1
+CUSTOM_LLM_API_KEY=your-llm-key
+CUSTOM_LLM_MODEL=your-model-name
+
+# 自签名证书（如内网 LLM 使用 HTTPS）
+SSL_CERT_FILE=C:\certs\internal-ca.crt
+REQUESTS_CA_BUNDLE=C:\certs\internal-ca.crt
+
+# tiktoken 离线缓存（离线部署必填）
+TIKTOKEN_CACHE_DIR=C:\Users\your-username\.tiktoken
+```
+
+#### 第二步：运行启动脚本
+
+**Windows**（在两个命令行窗口分别执行）：
+
+```bat
+REM 窗口 1：启动后端
+start-backend.bat
+
+REM 窗口 2：启动前端（等后端启动后再执行）
+start-frontend.bat
+```
+
+**Linux / macOS**（在两个终端窗口分别执行）：
+
+```bash
+# 窗口 1：启动后端
+chmod +x start-backend.sh start-frontend.sh
+./start-backend.sh
+
+# 窗口 2：启动前端
+./start-frontend.sh
+```
+
+启动成功后：
+- 后端 API：`http://localhost:8001`（或 `http://localhost:{PORT}`）
+- 前端界面：`http://localhost:3000`（或 `http://localhost:{FRONTEND_PORT}`）
+
+---
+
+### 手动安装步骤（详细说明）
+
+如果启动脚本报错，或需要了解每一步的细节，请参考以下手动流程。
+
+#### 1. 安装 Python 依赖
+
+**推荐：使用 uv**
+
+```bash
+# 安装 uv（如未安装）
+# Linux/macOS:
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Windows PowerShell:
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 在项目根目录安装后端依赖
+uv sync --directory api/
+```
+
+**备选：使用 pip**
+
+```bash
+# Linux/macOS
+pip3 install fastapi "uvicorn[standard]" pydantic tiktoken adalflow numpy faiss-cpu \
+    langid requests jinja2 python-dotenv openai ollama aiohttp boto3 \
+    websockets azure-identity azure-core google-generativeai
+
+# Windows
+python -m pip install fastapi "uvicorn[standard]" pydantic tiktoken adalflow numpy faiss-cpu ^
+    langid requests jinja2 python-dotenv openai ollama aiohttp boto3 ^
+    websockets azure-identity azure-core google-generativeai
+```
+
+#### 2. tiktoken 离线缓存
+
+内网环境首次启动时，tiktoken 会尝试从 `cdn.openai.com` 下载编码文件。若网络不通，服务将启动失败。**必须提前缓存。**
+
+**在有网络的机器上预下载：**
+
+```bash
+# Linux/macOS
+mkdir -p ~/.tiktoken
+TIKTOKEN_CACHE_DIR=~/.tiktoken python3 -c "
+import tiktoken
+tiktoken.get_encoding('cl100k_base')
+tiktoken.encoding_for_model('text-embedding-3-small')
+print('缓存文件已下载到 ~/.tiktoken/')
+"
+
+# Windows（命令提示符）
+mkdir %USERPROFILE%\.tiktoken
+python -c "import os; os.environ['TIKTOKEN_CACHE_DIR']=r'%USERPROFILE%\.tiktoken'; import tiktoken; tiktoken.get_encoding('cl100k_base'); tiktoken.encoding_for_model('text-embedding-3-small'); print('完成')"
+```
+
+**将缓存文件复制到内网机器：**
+
+```bash
+# 缓存文件通常在 ~/.tiktoken/（Linux/macOS）
+# 或 %USERPROFILE%\.tiktoken\（Windows）
+# 复制该目录到内网机器的同一路径即可
+
+# 然后在 .env 中配置：
+# TIKTOKEN_CACHE_DIR=C:\Users\your-username\.tiktoken
+```
+
+#### 3. SSL 证书配置
+
+如果内网 LLM 或 Git 仓库使用自签名 HTTPS 证书：
+
+**导出 Windows 系统证书：**
+
+```powershell
+# 找到证书颁发机构名称（证书管理器中查看）
+# 方法 1：导出 PEM 格式
+$cert = Get-ChildItem -Path Cert:\LocalMachine\Root | Where-Object { $_.Subject -like "*InternalCA*" }
+$cert | Export-Certificate -FilePath C:\certs\internal-ca.cer -Type CERT
+# 转换为 PEM 格式（需要 OpenSSL）
+openssl x509 -inform DER -in C:\certs\internal-ca.cer -out C:\certs\internal-ca.crt
+
+# 方法 2：直接导出 PEM（通过 certmgr.msc 图形界面操作）
+# 打开 certmgr.msc → 找到证书 → 右键导出 → 选择 Base-64 encoded X.509 (.CER)
+```
+
+**在 `.env` 中配置：**
+
+```dotenv
+SSL_CERT_FILE=C:\certs\internal-ca.crt
+REQUESTS_CA_BUNDLE=C:\certs\internal-ca.crt
+GIT_SSL_CAINFO=C:\certs\internal-ca.crt
+```
+
+#### 4. 安装前端依赖并构建
+
+```bash
+# 安装依赖
+npm install
+
+# 构建（生产模式）
+npm run build
+```
+
+#### 5. 启动服务
+
+**后端：**
+
+```bash
+# Linux/macOS（使用 uv）
+uv run -m api.main
+
+# Linux/macOS（使用 python3）
+python3 -m api.main
+
+# Windows（使用 uv）
+uv run -m api.main
+
+# Windows（使用 python）
+python -m api.main
+```
+
+**前端：**
+
+```bash
+# 默认端口 3000
+npm run start
+
+# 指定端口
+npm run start -- --port 3000
+```
+
+---
+
+### 离线环境准备
+
+如果内网机器完全无法联网，需要在有网络的机器上提前下载所有依赖。
+
+**一键准备（推荐）：**
+
+```bash
+# Linux/macOS
+chmod +x setup-offline.sh
+./setup-offline.sh
+
+# Windows
+setup-offline.bat
+```
+
+脚本执行完成后，会生成 `offline-packages/` 目录，包含：
+- `python-wheels/` — 所有 Python 依赖的 wheel 包
+- `npm-cache/` — npm 包缓存
+- `tiktoken-cache/` — tiktoken BPE 编码文件
+- `README.txt` — 内网机器安装步骤
+
+将整个 `offline-packages/` 目录复制到内网机器的项目根目录后，按 `README.txt` 操作即可。
+
+**离线安装 Python 依赖：**
+
+```bash
+# Linux/macOS
+pip3 install --no-index --find-links=offline-packages/python-wheels \
+    fastapi "uvicorn[standard]" pydantic tiktoken ...
+
+# Windows
+python -m pip install --no-index --find-links=offline-packages\python-wheels ^
+    fastapi "uvicorn[standard]" pydantic tiktoken ...
+```
+
+**离线安装 npm 依赖：**
+
+```bash
+npm install --cache offline-packages/npm-cache --prefer-offline --offline
+```
+
+---
+
+### 端到端验证清单（裸机）
+
+部署完成后，按顺序验证：
+
+- [ ] **后端启动不卡死**：命令行输出 `Uvicorn running on http://0.0.0.0:8001`，无 tiktoken 下载超时错误
+  ```bash
+  curl http://localhost:8001/health
+  # 期望返回：{"status": "ok"} 或类似响应
+  ```
+
+- [ ] **前端可访问**：浏览器打开 `http://localhost:3000`，页面正常加载
+
+- [ ] **自定义 LLM 可连接**：前端选择目标 provider，发送测试消息，收到正常响应
+
+- [ ] **SSL 证书正常**：LLM API 调用无 `certificate verify failed` 错误（查看后端控制台）
+
+- [ ] **Git 仓库可克隆**：在 DeepWiki 前端输入内网 Git 仓库 URL，仓库索引正常启动
+
+- [ ] **Wiki 生成全流程正常**：选择已索引的仓库，生成 Wiki，页面正常展示内容
 
 ---
 
