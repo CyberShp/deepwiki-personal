@@ -1,0 +1,40 @@
+# Ingress 示例（可选）
+# 本文件仅供参考，根据实际 Ingress Controller（nginx / traefik / 其他）调整注解。
+# 若集群未安装 Ingress Controller，可通过 NodePort 或 LoadBalancer Service 代替。
+#
+# 应用方式（确认 IngressClass 名称后取消注释并修改）：
+#   kubectl apply -f k8s/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: deepwiki
+  namespace: deepwiki
+  labels:
+    app.kubernetes.io/name: deepwiki
+  annotations:
+    # nginx Ingress Controller 注解示例
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    # 若需 HTTPS，配置 cert-manager 自动签发证书（或使用内网 CA）：
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  # 根据集群实际 IngressClass 名称修改（常见值：nginx、traefik）
+  ingressClassName: nginx
+  rules:
+    # 替换为实际内网域名
+    - host: deepwiki.intranet.company.com
+      http:
+        paths:
+          # 前端：将所有请求转发到前端 Next.js 服务
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: deepwiki
+                port:
+                  name: frontend
+  # 可选：TLS 配置（使用内网证书或 cert-manager）
+  # tls:
+  #   - hosts:
+  #       - deepwiki.intranet.company.com
+  #     secretName: deepwiki-tls

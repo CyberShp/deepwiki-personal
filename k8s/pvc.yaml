@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: deepwiki-adalflow-pvc
+  namespace: deepwiki
+  labels:
+    app.kubernetes.io/name: deepwiki
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # 根据实际存储类修改 storageClassName；
+  # 若集群有默认 StorageClass 可删除此字段
+  # storageClassName: standard
+  resources:
+    requests:
+      # adalflow 存储仓库索引和 embedding 数据，建议至少 10Gi
+      storage: 20Gi

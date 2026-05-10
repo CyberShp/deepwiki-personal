@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deepwiki
+  namespace: deepwiki
+  labels:
+    app.kubernetes.io/name: deepwiki
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: deepwiki
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: deepwiki
+    spec:
+      containers:
+        - name: deepwiki
+          # 替换为实际 Harbor 地址和镜像 tag
+          # 示例：harbor.intranet.company.com/deepwiki/deepwiki:latest
+          image: harbor.intranet.company.com/deepwiki/deepwiki:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: api
+              containerPort: 8001
+              protocol: TCP
+            - name: frontend
+              containerPort: 3000
+              protocol: TCP
+          # 从 ConfigMap 加载非敏感环境变量
+          envFrom:
+            - configMapRef:
+                name: deepwiki-config
+            - secretRef:
+                name: deepwiki-secret
+          volumeMounts:
+            # adalflow 数据持久化（仓库索引、embedding 数据）
+            - name: adalflow-data
+              mountPath: /root/.adalflow
+            # 可选：挂载自签名 CA 证书（内网 HTTPS 场景）
+            # - name: ca-certs
+            #   mountPath: /certs
+            #   readOnly: true
+          # 存活探针：与 docker-compose healthcheck 保持一致
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: api
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            timeoutSeconds: 10
+            failureThreshold: 3
+          # 就绪探针：后端 ready 后才接收流量
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: api
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            limits:
+              # 与 docker-compose mem_limit: 6g 对齐
+              memory: "6Gi"
+              cpu: "4"
+            requests:
+              # 与 docker-compose mem_reservation: 2g 对齐
+              memory: "2Gi"
+              cpu: "500m"
+      volumes:
+        - name: adalflow-data
+          persistentVolumeClaim:
+            claimName: deepwiki-adalflow-pvc
+        # 可选：自签名 CA 证书 ConfigMap（需提前创建）
+        # kubectl create configmap ca-certs --from-file=internal-ca.crt -n deepwiki
+        # - name: ca-certs
+        #   configMap:
+        #     name: ca-certs
+      # 若 Harbor 需要认证，配置 imagePullSecrets：
+      # kubectl create secret docker-registry harbor-credentials \
+      #   --docker-server=harbor.intranet.company.com \
+      #   --docker-username=<robot-account> \
+      #   --docker-password=<robot-token> \
+      #   -n deepwiki
+      # imagePullSecrets:
+      #   - name: harbor-credentials

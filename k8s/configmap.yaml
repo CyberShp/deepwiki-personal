@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deepwiki-config
+  namespace: deepwiki
+  labels:
+    app.kubernetes.io/name: deepwiki
+data:
+  # API 后端监听端口
+  PORT: "8001"
+  # Node.js 运行环境
+  NODE_ENV: "production"
+  # 前端访问后端的基础 URL（同一 Pod 内用 localhost；多 Pod 部署改为 Service 地址）
+  SERVER_BASE_URL: "http://localhost:8001"
+  # 日志级别
+  LOG_LEVEL: "INFO"
+  # 日志文件路径（容器内）
+  LOG_FILE_PATH: "api/logs/application.log"
+  # tiktoken 编码缓存目录（镜像内已预置，离线可用）
+  TIKTOKEN_CACHE_DIR: "/opt/tiktoken_cache"
+  # adalflow 数据目录（与 PVC 挂载点对应）
+  ADALFLOW_HOME: "/root/.adalflow"
