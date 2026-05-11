@@ -1598,6 +1598,9 @@ IMPORTANT:
       if (modelExcludedFiles) {
         params.append('excluded_files', modelExcludedFiles);
       }
+      if (effectiveRepoInfo.type === 'local' && effectiveRepoInfo.localPath) {
+        params.append('local_path', effectiveRepoInfo.localPath);
+      }
 
       if(authRequired && !authCode) {
         setIsLoading(false);
