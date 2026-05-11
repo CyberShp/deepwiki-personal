@@ -1702,6 +1702,9 @@ IMPORTANT:
             language: language,
             comprehensive: isComprehensiveView.toString(),
           });
+          if (effectiveRepoInfo.localPath) {
+            params.append('local_path', effectiveRepoInfo.localPath);
+          }
           const response = await fetch(`/api/wiki_cache?${params.toString()}`);
 
           if (response.ok) {

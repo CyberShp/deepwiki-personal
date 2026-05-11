@@ -729,8 +729,18 @@ def get_file_content(repo_url: str, file_path: str, repo_type: str = None, acces
         return get_gitlab_file_content(repo_url, file_path, access_token)
     elif repo_type == "bitbucket":
         return get_bitbucket_file_content(repo_url, file_path, access_token)
+    elif repo_type == "local":
+        # For local repos repo_url is the directory path
+        full_path = os.path.join(repo_url, file_path)
+        try:
+            with open(full_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            raise ValueError(f"File not found: {full_path}")
+        except Exception as e:
+            raise ValueError(f"Failed to read local file: {str(e)}")
     else:
-        raise ValueError("Unsupported repository type. Only GitHub, GitLab, and Bitbucket are supported.")
+        raise ValueError("Unsupported repository type. Only GitHub, GitLab, Bitbucket, and local are supported.")
 
 class DatabaseManager:
     """

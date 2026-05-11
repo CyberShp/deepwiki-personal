@@ -101,6 +101,10 @@ export default function ConfigurationModal({
   // Show token section state
   const [showTokenSection, setShowTokenSection] = useState(false);
 
+  // Detect if input is a local filesystem path
+  const windowsPathRegex = /^[a-zA-Z]:\\(?:[^\\/:*?"<>|\r\n]+\\)*[^\\/:*?"<>|\r\n]*$/;
+  const isLocal = repositoryInput.trim().startsWith('/') || windowsPathRegex.test(repositoryInput.trim());
+
   if (!isOpen) return null;
 
   return (
@@ -231,16 +235,18 @@ export default function ConfigurationModal({
               />
             </div>
 
-            {/* Access token section using TokenInput component */}
-            <TokenInput
-              selectedPlatform={selectedPlatform}
-              setSelectedPlatform={setSelectedPlatform}
-              accessToken={accessToken}
-              setAccessToken={setAccessToken}
-              showTokenSection={showTokenSection}
-              onToggleTokenSection={() => setShowTokenSection(!showTokenSection)}
-              allowPlatformChange={true}
-            />
+            {/* Access token section - hidden for local filesystem paths */}
+            {!isLocal && (
+              <TokenInput
+                selectedPlatform={selectedPlatform}
+                setSelectedPlatform={setSelectedPlatform}
+                accessToken={accessToken}
+                setAccessToken={setAccessToken}
+                showTokenSection={showTokenSection}
+                onToggleTokenSection={() => setShowTokenSection(!showTokenSection)}
+                allowPlatformChange={true}
+              />
+            )}
 
             {/* Authorization Code Input */}
             {isAuthLoading && (
