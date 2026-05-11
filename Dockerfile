@@ -73,9 +73,12 @@ RUN if [ -n "${CUSTOM_CERT_DIR}" ]; then \
         fi \
     fi
 
-# Point Python/requests/httpx at the system CA bundle so custom certs are used
+# Point all SSL-aware components at the system CA bundle (includes any custom certs injected above)
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+ENV GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+ENV CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
 ENV PATH="/opt/venv/bin:$PATH"
 
@@ -104,6 +107,19 @@ if [ -z "$OPENAI_API_KEY" ] || [ -z "$GOOGLE_API_KEY" ]; then\n\
   echo "Warning: OPENAI_API_KEY and/or GOOGLE_API_KEY environment variables are not set."\n\
   echo "These are required for DeepWiki to function properly."\n\
   echo "You can provide them via a mounted .env file or as environment variables when running the container."\n\
+fi\n\
+\n\
+# Propagate SSL_CERT_FILE to all SSL-aware components (handles runtime cert overrides)\n\
+if [ -n "$SSL_CERT_FILE" ]; then\n\
+  export REQUESTS_CA_BUNDLE="${REQUESTS_CA_BUNDLE:-$SSL_CERT_FILE}"\n\
+  export GIT_SSL_CAINFO="${GIT_SSL_CAINFO:-$SSL_CERT_FILE}"\n\
+  export NODE_EXTRA_CA_CERTS="${NODE_EXTRA_CA_CERTS:-$SSL_CERT_FILE}"\n\
+  export CURL_CA_BUNDLE="${CURL_CA_BUNDLE:-$SSL_CERT_FILE}"\n\
+elif [ -n "$REQUESTS_CA_BUNDLE" ]; then\n\
+  export SSL_CERT_FILE="${SSL_CERT_FILE:-$REQUESTS_CA_BUNDLE}"\n\
+  export GIT_SSL_CAINFO="${GIT_SSL_CAINFO:-$REQUESTS_CA_BUNDLE}"\n\
+  export NODE_EXTRA_CA_CERTS="${NODE_EXTRA_CA_CERTS:-$REQUESTS_CA_BUNDLE}"\n\
+  export CURL_CA_BUNDLE="${CURL_CA_BUNDLE:-$REQUESTS_CA_BUNDLE}"\n\
 fi\n\
 \n\
 # Start the API server in the background with the configured port\n\

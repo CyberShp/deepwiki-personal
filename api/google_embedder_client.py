@@ -73,6 +73,12 @@ class GoogleEmbedderClient(ModelClient):
             raise ValueError(
                 f"Environment variable {self._env_api_key_name} must be set"
             )
+        ssl_cert = os.getenv("SSL_CERT_FILE") or os.getenv("REQUESTS_CA_BUNDLE")
+        if ssl_cert:
+            if not os.getenv("REQUESTS_CA_BUNDLE"):
+                os.environ["REQUESTS_CA_BUNDLE"] = ssl_cert
+            if not os.getenv("GRPC_DEFAULT_SSL_ROOTS_FILE_PATH"):
+                os.environ["GRPC_DEFAULT_SSL_ROOTS_FILE_PATH"] = ssl_cert
         genai.configure(api_key=api_key)
 
     def parse_embedding_response(self, response) -> EmbedderOutput:

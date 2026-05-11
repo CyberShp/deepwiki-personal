@@ -17,15 +17,19 @@ services:
       # tiktoken encoding cache — defaults to the pre-built image cache.
       # Mount a host directory and set this variable to use an external cache in air-gapped environments.
       - TIKTOKEN_CACHE_DIR=${TIKTOKEN_CACHE_DIR:-/opt/tiktoken_cache}
-      # SSL / Git certificate overrides for internal networks with self-signed CAs.
-      # Set GIT_SSL_CAINFO to the in-container path of your CA bundle so git trusts it.
+      # SSL / custom CA certificate support for internal networks with self-signed CAs.
+      # Mount your CA bundle at /certs/ca-bundle.crt (see volumes below), then set:
+      # - SSL_CERT_FILE=/certs/ca-bundle.crt
+      # - REQUESTS_CA_BUNDLE=/certs/ca-bundle.crt
       # - GIT_SSL_CAINFO=/certs/ca-bundle.crt
+      # - NODE_EXTRA_CA_CERTS=/certs/ca-bundle.crt
+      # - CURL_CA_BUNDLE=/certs/ca-bundle.crt
     volumes:
       - ~/.adalflow:/root/.adalflow      # Persist repository and embedding data
       - ./api/logs:/app/api/logs          # Persist log files across container restarts
       # Mount a directory of custom CA certificates (.crt files) for internal HTTPS.
-      # The Dockerfile copies *.crt files from CUSTOM_CERT_DIR into the system CA store.
-      # Set CUSTOM_CERT_DIR to the in-container path when building, or mount here at runtime:
+      # The Dockerfile copies *.crt files from CUSTOM_CERT_DIR into the system CA store at build time.
+      # For runtime cert injection without rebuilding, uncomment the line below and set SSL_CERT_FILE above:
       # - ./certs:/certs:ro
     # Resource limits for docker-compose up (not Swarm mode)
     mem_limit: 6g

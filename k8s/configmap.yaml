@@ -20,3 +20,11 @@ data:
   TIKTOKEN_CACHE_DIR: "/opt/tiktoken_cache"
   # adalflow 数据目录（与 PVC 挂载点对应）
   ADALFLOW_HOME: "/root/.adalflow"
+  # SSL / 自定义 CA 证书（内网自签名场景）
+  # 先创建 ConfigMap: kubectl create configmap ca-certs --from-file=ca-bundle.crt -n deepwiki
+  # 再将证书挂载到 /certs/ca-bundle.crt（见 deployment.yaml），然后取消注释下方变量：
+  # SSL_CERT_FILE: "/certs/ca-bundle.crt"
+  # REQUESTS_CA_BUNDLE: "/certs/ca-bundle.crt"
+  # GIT_SSL_CAINFO: "/certs/ca-bundle.crt"
+  # NODE_EXTRA_CA_CERTS: "/certs/ca-bundle.crt"
+  # CURL_CA_BUNDLE: "/certs/ca-bundle.crt"

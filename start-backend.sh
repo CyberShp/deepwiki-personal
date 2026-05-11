@@ -80,16 +80,35 @@ fi
 export TIKTOKEN_CACHE_DIR
 
 ###############################################################################
-# 5. SSL 证书检查
+# 5. SSL 证书配置 —— 用户只需设置 SSL_CERT_FILE，其余变量自动推导
 ###############################################################################
-if [ -z "$SSL_CERT_FILE" ] && [ -z "$REQUESTS_CA_BUNDLE" ]; then
-    warn "未设置 SSL_CERT_FILE / REQUESTS_CA_BUNDLE。"
-    warn "如果内网 LLM 使用自签名证书，请在 .env 中配置这两个变量。"
-    warn "示例：SSL_CERT_FILE=/path/to/your-ca-bundle.crt"
+_SSL_SOURCE=""
+if [ -n "$SSL_CERT_FILE" ]; then
+    _SSL_SOURCE="$SSL_CERT_FILE"
+elif [ -n "$REQUESTS_CA_BUNDLE" ]; then
+    _SSL_SOURCE="$REQUESTS_CA_BUNDLE"
+fi
+
+if [ -n "$_SSL_SOURCE" ]; then
+    if [ ! -f "$_SSL_SOURCE" ]; then
+        warn "SSL 证书文件不存在: $_SSL_SOURCE，请检查路径。"
+    else
+        # 传播到所有下游组件：requests / httpx / aiohttp / git / curl / Node.js
+        export SSL_CERT_FILE="${SSL_CERT_FILE:-$_SSL_SOURCE}"
+        export REQUESTS_CA_BUNDLE="${REQUESTS_CA_BUNDLE:-$_SSL_SOURCE}"
+        export GIT_SSL_CAINFO="${GIT_SSL_CAINFO:-$_SSL_SOURCE}"
+        export NODE_EXTRA_CA_CERTS="${NODE_EXTRA_CA_CERTS:-$_SSL_SOURCE}"
+        export CURL_CA_BUNDLE="${CURL_CA_BUNDLE:-$_SSL_SOURCE}"
+        info "SSL 证书变量已配置 ✓"
+        info "  SSL_CERT_FILE=$SSL_CERT_FILE"
+        info "  REQUESTS_CA_BUNDLE=$REQUESTS_CA_BUNDLE"
+        info "  GIT_SSL_CAINFO=$GIT_SSL_CAINFO"
+        info "  NODE_EXTRA_CA_CERTS=$NODE_EXTRA_CA_CERTS"
+    fi
 else
-    info "SSL 证书变量已配置 ✓"
-    [ -n "$SSL_CERT_FILE" ] && info "  SSL_CERT_FILE=$SSL_CERT_FILE"
-    [ -n "$REQUESTS_CA_BUNDLE" ] && info "  REQUESTS_CA_BUNDLE=$REQUESTS_CA_BUNDLE"
+    warn "未设置 SSL_CERT_FILE / REQUESTS_CA_BUNDLE。"
+    warn "如果内网 LLM 使用自签名证书，请在 .env 中配置："
+    warn "  SSL_CERT_FILE=/path/to/your-ca-bundle.crt"
 fi
 
 ###############################################################################

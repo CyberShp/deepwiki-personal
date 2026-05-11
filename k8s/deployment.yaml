@@ -39,6 +39,7 @@ spec:
             - name: adalflow-data
               mountPath: /root/.adalflow
             # 可选：挂载自签名 CA 证书（内网 HTTPS 场景）
+            # 配合 configmap.yaml 中的 SSL_CERT_FILE 等变量一起使用
             # - name: ca-certs
             #   mountPath: /certs
             #   readOnly: true

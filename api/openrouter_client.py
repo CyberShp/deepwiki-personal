@@ -3,6 +3,8 @@
 from typing import Dict, Sequence, Optional, Any, List
 import logging
 import json
+import os
+import ssl
 import aiohttp
 import requests
 from requests.exceptions import RequestException, Timeout
@@ -144,7 +146,10 @@ class OpenRouterClient(ModelClient):
                 log.info(f"Request headers: {headers}")
                 log.info(f"Request body: {api_kwargs}")
 
-                async with aiohttp.ClientSession() as session:
+                ssl_cert = os.getenv("SSL_CERT_FILE") or os.getenv("REQUESTS_CA_BUNDLE")
+                ssl_ctx = ssl.create_default_context(cafile=ssl_cert) if ssl_cert else None
+                connector = aiohttp.TCPConnector(ssl=ssl_ctx) if ssl_ctx else aiohttp.TCPConnector()
+                async with aiohttp.ClientSession(connector=connector) as session:
                     try:
                         async with session.post(
                             f"{self.async_client['base_url']}/chat/completions",

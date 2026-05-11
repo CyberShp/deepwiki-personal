@@ -37,7 +37,8 @@ def check_ollama_model_exists(model_name: str, ollama_host: str = None) -> bool:
         if ollama_host.endswith('/api'):
             ollama_host = ollama_host[:-4]
         
-        response = requests.get(f"{ollama_host}/api/tags", timeout=5)
+        ssl_verify = os.getenv("SSL_CERT_FILE") or os.getenv("REQUESTS_CA_BUNDLE") or True
+        response = requests.get(f"{ollama_host}/api/tags", timeout=5, verify=ssl_verify)
         if response.status_code == 200:
             models_data = response.json()
             available_models = [model.get('name', '').split(':')[0] for model in models_data.get('models', [])]
